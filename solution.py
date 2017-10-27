@@ -1,4 +1,4 @@
-from itertools import permutations
+from itertools import combinations
 
 assignments = []
 
@@ -38,8 +38,8 @@ def remove_digit(values, box, digit):
     return assign_value(values, box, new_values)
 
 
-def is_twin(pair, values):
-    """Determine if two boxes in a unit are twin
+def are_naked_twins(pair, values):
+    """Determine if two boxes in a unit are naked_twins
     Args:
         pair(tuple): tuple with first element as the first box and the second element as the second box. 
         values(dict): the sudoku
@@ -47,7 +47,7 @@ def is_twin(pair, values):
         bool: True if twin (same value)
     """
     box1, box2 = pair
-    return values[box1] == values[box2]
+    return len(values[box1]) == 2 and (values[box1] == values[box2])
 
 
 def find_twins(unit, values):
@@ -59,11 +59,11 @@ def find_twins(unit, values):
         list or None
     """
 
-    return [(pair[0], pair[1]) for pair in permutations(unit) if is_twin(pair, values)]
+    return [pair for pair in combinations(unit, r=2) if are_naked_twins(pair, values)]
 
 
 def eliminate_twins(unit, twins, values):
-    """Eliminates the values for in twin for all non twin pairs within a given unit
+    """Eliminates the values in a twin pair from all non twin boxes within a given unit
     Args:
         unit(list): the unit of boxes
         twins(tuple): the twins
@@ -71,11 +71,13 @@ def eliminate_twins(unit, twins, values):
     Returns:
         values with the removed digits
     """
-    boxes_not_in_twin = [box for box in unit if box not in twins]
+    boxes_not_in_twins = [box for box in unit if box not in twins]
     digits = values[twins[0]]
 
-    for box in boxes_not_in_twin:
-        remove_digit(values, box, digits)
+    for box in boxes_not_in_twins:
+        for digit in digits:
+            if len(values[box])!=1:
+                remove_digit(values, box, digit)
 
     return values
 
@@ -91,7 +93,7 @@ def naked_twins(values):
 
     # Find all instances of naked twins
 
-    for unit in units:
+    for unit in unitlist:
         twins_list = find_twins(unit, values)
         for twins in twins_list:
             values = eliminate_twins(unit, twins, values)
@@ -221,9 +223,10 @@ def reduce_puzzle(values):
     while not stalled:
         solved_values_before = count_solved(values)
 
-        # Use the elimination strategy and then the only choice. 
+        # Use the strategies
         values = eliminate(values)
         values = only_choice(values)
+        values = naked_twins(values)
 
         # determine if stalled
         solved_values_after = count_solved(values)
@@ -273,6 +276,35 @@ def search(values):
             return attempt
 
 
+def get_diagonal(rows, cols):
+    """ gets the diagonal for rows
+    Args:
+        row(list)
+        cols(list
+    Returns:
+        list
+    """
+
+    return [rows[i]+cols[i] for i in range(len(rows))]
+
+
+# set up parameters
+rows = 'ABCDEFGHI'
+cols = '123456789'
+
+boxes = cross(rows, cols)
+
+# set up units
+row_units = [cross(r, cols) for r in rows]
+column_units = [cross(rows, c) for c in cols]
+square_units = [cross(rs, cs) for rs in ('ABC', 'DEF', 'GHI') for cs in ('123', '456', '789')]
+diagonal_units = [get_diagonal(rows, cols), get_diagonal(rows,cols[::-1])]
+
+unitlist = row_units + column_units + square_units + diagonal_units
+units = dict((s, [u for u in unitlist if s in u]) for s in boxes)
+peers = dict((s, set(sum(units[s], [])) - set([s])) for s in boxes)
+
+
 def solve(grid):
     """
     Find the solution to a Sudoku grid.
@@ -282,56 +314,15 @@ def solve(grid):
     Returns:
         The dictionary representation of the final sudoku grid. False if no solution exists.
     """
-    pass
+    values = grid_values(grid)
 
+    return search(values)
 
-rows = 'ABCDEFGHI'
-cols = '123456789'
-
-boxes = cross(rows, cols)
-
-row_units = [cross(r, cols) for r in rows]
-column_units = [cross(rows, c) for c in cols]
-square_units = [cross(rs, cs) for rs in ('ABC', 'DEF', 'GHI') for cs in ('123', '456', '789')]
-unitlist = row_units + column_units + square_units
-units = dict((s, [u for u in unitlist if s in u]) for s in boxes)
-peers = dict((s, set(sum(units[s], [])) - set([s])) for s in boxes)
-
-
-def test_sudoku():
-    """ This checks the suduku solution for my own interal test"""
-
-    sudoku = '..3.2.6..9..3.5..1..18.64....81.29..7.......8..67.82....26.95..8..2.3..9..5.1.3..'
-    values = grid_values(sudoku)
-    print('Initial')
-    display(values)
-
-    # test eliminate:
-    values = eliminate(values)
-    print('\n\n After elimination')
-    display(values)
-
-    print('\n\n after only_choice')
-    values = only_choice(values)
-    display(values)
-
-    print('\n\n after reduce_puzzle')
-    values = reduce_puzzle(values)
-    display(values)
-
-    print('\n\n Harder puzzle after Search')
-
-    grid2 = '4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......'
-    values = grid_values(grid2)
-    display(values)
-    values = search(values)
-    display(values)
 
 
 if __name__ == '__main__':
-    test_sudoku()
 
-    '''
+
     diag_sudoku_grid = '2.............62....1....7...6..8...3...9...7...6..4...4....8....52.............3'
     display(solve(diag_sudoku_grid))
 
@@ -343,4 +334,4 @@ if __name__ == '__main__':
         pass
     except:
         print('We could not visualize your board due to a pygame issue. Not a problem! It is not a requirement.')
-        '''
+
